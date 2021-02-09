@@ -56,7 +56,7 @@ dbussessionservicedir=@dbussessionservicedir@
 dbussystemservicedir=@dbussystemservicedir@
 dbusinterfacedir=@dbusinterfacedir@
 pamlibdir=@pamlibdir@
-pkgconfigdatadir=$(datadir)/pkgconfig
+pkgconfigdatadir=$(libdir)/pkgconfig
 pkgconfiglibdir=$(libdir)/pkgconfig
 polkitpolicydir=$(datadir)/polkit-1/actions
 bashcompletiondir=$(sysconfdir)/bash_completion.d
@@ -1685,7 +1685,7 @@ udevconfdir = $(sysconfdir)/udev
 dist_udevconf_DATA = \
 	src/udev/udev.conf
 
-sharepkgconfigdir = $(datadir)/pkgconfig
+sharepkgconfigdir = $(libdir)/pkgconfig
 sharepkgconfig_DATA = \
 	src/udev/udev.pc
 
