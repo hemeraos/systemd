@@ -62,6 +62,12 @@ int verify_polkit(
         if (r < 0)
                 return r;
 
+        unsigned long uid = dbus_bus_get_unix_user(c, sender, error);
+        if (uid == 0) {
+            /* root user (uid 0) can do already everything, don't ask polkit any confirm */
+            return 1;
+        }
+
         m = dbus_message_new_method_call(
                         "org.freedesktop.PolicyKit1",
                         "/org/freedesktop/PolicyKit1/Authority",
