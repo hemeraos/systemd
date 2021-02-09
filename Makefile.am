@@ -76,6 +76,7 @@ systemunitdir=$(rootprefix)/lib/systemd/system
 udevlibexecdir=$(rootprefix)/lib/udev
 udevhomedir = $(udevlibexecdir)
 udevrulesdir = $(udevlibexecdir)/rules.d
+testbindir = /opt/tests/systemd-tests/bin
 
 # And these are the special ones for /
 rootprefix=@rootprefix@
@@ -105,7 +106,7 @@ dbusinterface_DATA =
 dist_dbussystemservice_DATA =
 check_PROGRAMS =
 check_DATA =
-noinst_PROGRAMS =
+testbin_PROGRAMS =
 TESTS =
 udevlibexec_PROGRAMS =
 
@@ -1098,7 +1099,7 @@ CLEANFILES += \
 	src/core/macros.systemd
 
 # ------------------------------------------------------------------------------
-noinst_PROGRAMS += \
+testbin_PROGRAMS += \
 	test-engine \
 	test-job-type \
 	test-ns \
@@ -1795,7 +1796,7 @@ TESTS += \
 	test/udev-test.pl \
 	test/rules-test.sh
 
-noinst_PROGRAMS += \
+testbin_PROGRAMS += \
 	test-libudev \
 	test-udev
 
@@ -2253,7 +2254,7 @@ test_id128_LDADD = \
 	libsystemd-shared.la \
 	libsystemd-id128-internal.la
 
-noinst_PROGRAMS += \
+testbin_PROGRAMS += \
 	test-id128
 
 TESTS += \
@@ -2454,7 +2455,7 @@ libsystemd-journal-uninstall-hook:
 UNINSTALL_EXEC_HOOKS += \
 	libsystemd-journal-uninstall-hook
 
-noinst_PROGRAMS += \
+testbin_PROGRAMS += \
 	test-journal \
 	test-journal-send \
 	test-journal-match \
@@ -3097,7 +3098,7 @@ test_inhibit_CFLAGS = \
 	$(AM_CFLAGS) \
 	$(DBUS_CFLAGS)
 
-noinst_PROGRAMS += \
+testbin_PROGRAMS += \
 	test-login \
 	test-inhibit
 
