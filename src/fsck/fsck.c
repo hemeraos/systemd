@@ -36,9 +36,152 @@
 #include "bus-errors.h"
 #include "virt.h"
 
+#define FACT_RES_ENV "HEMERA_FACTORY_RESET"
+#define FACT_RES_DIR "/usr/share/hemera/factoryreset.d/"
+#define PART_TYPE_NAME "ID_PART_ENTRY_TYPE"
+#define FACT_RES_GPT_TYPE "d1c18431-2ce9-4d8a-8a27-ab276095c9e1"
+#define FACT_RES_MBR_TYPE "0x64"
+
 static bool arg_skip = false;
 static bool arg_force = false;
 static bool arg_show_progress = false;
+
+static bool factres_check_cfg_dir(void)
+{
+        struct stat filestat;
+        /* If the file exists and is a directory */
+        if (stat(FACT_RES_DIR, &filestat) == 0 && S_ISDIR(filestat.st_mode)) {
+                return true;
+        } else {
+                return false;
+        }
+}
+
+static void factres_replace_slash(char* path)
+{
+        size_t i;
+        size_t len = strlen(path);
+        for (i=0; i<len; ++i) {
+                if(path[i] == '/') {
+                        path[i] = '_';
+                }
+        }
+}
+
+static char *factres_get_cfgpath(const char *devnode)
+{
+        char *devstring;
+        char *cfgpath;
+        /* Omit the leading slash */
+        if (!(devstring = strdup(&(devnode[1])))) {
+            return NULL;
+        }
+        factres_replace_slash(devstring);
+        cfgpath = strappend(FACT_RES_DIR, devstring);
+        free(devstring);
+        return cfgpath;
+}
+
+static int factres_exec(const char *devname)
+{
+        int r = EXIT_FAILURE;
+        bool ok = true;
+        char *cfgpath;
+        char *line = NULL;
+        size_t linesize = 0;
+        FILE *reset_cfg;
+        const char *devnode;
+        struct stat dev_stat;
+        struct udev_device *dev;
+        struct udev *udev;
+        log_info("Factory-resetting partition: %s", devname);
+        if (stat(devname, &dev_stat) < 0) {
+                log_error("Failed to stat %s", devname);
+                goto finish_exec;
+        }
+        if (!(udev = udev_new())) {
+                log_error("Out of memory");
+                goto finish_exec;
+        }
+        if (!(dev = udev_device_new_from_devnum(udev, 'b', dev_stat.st_rdev))) {
+                log_error("Failed to detect device %s", devname);
+                goto finish_exec;
+        }
+        if (!(devnode = udev_device_get_devnode(dev))) {
+                log_error("Failed to detect device node of %s", devname);
+                goto finish_exec;
+        }
+        if (!(cfgpath = factres_get_cfgpath(devnode))) {
+                log_error("Out of memory");
+                goto finish_exec;
+        }
+        if (!(reset_cfg = fopen(cfgpath, "r"))) {
+                /* No config file, so nothing to do */
+                r = EXIT_SUCCESS;
+                goto finish_exec;
+        }
+        while (getline(&line, &linesize, reset_cfg) != -1) {
+                const char *command = strstrip(line);
+                if (strlen(command) && command[0] != '#') {
+                    log_info("Executing command: %s", command);
+                    if (system(command) != 0) {
+                        ok = false;
+                    }
+                }
+        }
+        if (ok) {
+            r = EXIT_SUCCESS;
+        }
+finish_exec:
+        if (line) {
+                free(line);
+        }
+        if (cfgpath) {
+                free(cfgpath);
+        }
+        if (dev) {
+                udev_device_unref(dev);
+        }
+        if (udev) {
+                udev_unref(udev);
+        }
+        return r;
+}
+
+
+
+static bool factres_check_fs(const char *devname)
+{
+        bool r = false;
+        struct stat dev_stat;
+        struct udev *udev;
+        struct udev_device *dev;
+        const char *gpt_id;
+        if (stat(devname, &dev_stat) < 0) {
+                log_error("Failed to stat device %s", devname);
+                goto finish_check;
+        }
+        if (!(udev = udev_new())) {
+                log_error("Out of memory.");
+                goto finish_check;
+        }
+        if (!(dev = udev_device_new_from_devnum(udev, 'b', dev_stat.st_rdev))) {
+                log_error("Failed to detect device %s", devname);
+                goto finish_check;
+        }
+        gpt_id = udev_device_get_property_value(dev, PART_TYPE_NAME);
+        if (gpt_id && (strcmp(gpt_id, FACT_RES_GPT_TYPE) == 0 || strcmp(gpt_id, FACT_RES_MBR_TYPE) == 0)) {
+                r = true;
+        }
+finish_check:
+        if (udev) {
+                udev_unref(udev);
+        }
+        if (dev) {
+                udev_device_unref(dev);
+        }
+        return r;
+}
 
 static void start_target(const char *target, bool isolate) {
         DBusMessage *m = NULL, *reply = NULL;
@@ -273,6 +416,17 @@ int main(int argc, char *argv[]) {
         if (argc > 1) {
                 device = argv[1];
                 root_directory = false;
+                if (factres_check_cfg_dir()) {
+                        char *reset_env = getenv(FACT_RES_ENV);
+                        if ((reset_env && strcmp(reset_env, "1") == 0) || factres_check_fs(device)) {
+                                if (factres_exec(device) == EXIT_SUCCESS) {
+                                        log_info("Factory reset successful.");
+                                        return EXIT_SUCCESS;
+                                } else {
+                                        log_error("Factory reset unsuccessful. Continuing fsck.");
+                                }
+                        }
+                }
         } else {
                 struct stat st;
                 struct timespec times[2];
