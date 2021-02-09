@@ -1227,7 +1227,7 @@ char *strappend(const char *s, const char *suffix) {
         return strnappend(s, suffix, suffix ? strlen(suffix) : 0);
 }
 
-int readlink_malloc(const char *p, char **r) {
+int readlinkat_malloc(int fd, const char *p, char **r) {
         size_t l = 100;
 
         assert(p);
@@ -1255,6 +1255,10 @@ int readlink_malloc(const char *p, char **r) {
                 free(c);
                 l *= 2;
         }
+}
+
+int readlink_malloc(const char *p, char **ret) {
+        return readlinkat_malloc(AT_FDCWD, p, ret);
 }
 
 int readlink_and_make_absolute(const char *p, char **r) {

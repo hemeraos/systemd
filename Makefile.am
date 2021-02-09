@@ -750,7 +750,9 @@ libsystemd_shared_la_SOURCES = \
 	src/shared/spawn-polkit-agent.c \
 	src/shared/spawn-polkit-agent.h \
 	src/shared/hwclock.c \
-	src/shared/hwclock.h
+	src/shared/hwclock.h \
+	src/shared/copy.c \
+	src/shared/copy.h
 
 #-------------------------------------------------------------------------------
 noinst_LTLIBRARIES += \

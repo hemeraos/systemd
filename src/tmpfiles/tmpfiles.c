@@ -47,6 +47,7 @@
 #include "label.h"
 #include "set.h"
 #include "conf-files.h"
+#include "copy.h"
 
 /* This reads all files listed in /etc/tmpfiles.d/?*.conf and creates
  * them in the file system. This is intended to be used to create
@@ -64,6 +65,7 @@ typedef enum ItemType {
         CREATE_SYMLINK = 'L',
         CREATE_CHAR_DEVICE = 'c',
         CREATE_BLOCK_DEVICE = 'b',
+        COPY_FILES = 'C',
 
         /* These ones take globs */
         IGNORE_PATH = 'x',
@@ -603,6 +605,38 @@ static int create_item(Item *i) {
         case RECURSIVE_REMOVE_PATH:
                 return 0;
 
+        case COPY_FILES:
+                r = copy_tree_new(i->argument, i->path, false);
+                if (r < 0) {
+                        struct stat a, b;
+
+                        if (r != -EEXIST) {
+                                log_error("Failed to copy files to %s: %s", i->path, strerror(-r));
+                                return -r;
+                        }
+
+                        if (stat(i->argument, &a) < 0) {
+                                log_error("stat(%s) failed: %m", i->argument);
+                                return -errno;
+                        }
+
+                        if (stat(i->path, &b) < 0) {
+                                log_error("stat(%s) failed: %m", i->path);
+                                return -errno;
+                        }
+
+                        if ((a.st_mode ^ b.st_mode) & S_IFMT) {
+                                log_debug("Can't copy to %s, file exists already and is of different type", i->path);
+                                return 0;
+                        }
+                }
+
+                r = item_set_perms(i, i->path);
+                if (r < 0)
+                        return r;
+
+                break;
+
         case CREATE_FILE:
         case TRUNCATE_FILE:
         case WRITE_FILE: {
@@ -831,6 +865,7 @@ static int remove_item_instance(Item *i, const char *instance) {
         case RELABEL_PATH:
         case RECURSIVE_RELABEL_PATH:
         case WRITE_FILE:
+        case COPY_FILES:
                 break;
 
         case REMOVE_PATH:
@@ -875,6 +910,7 @@ static int remove_item(Item *i) {
         case RELABEL_PATH:
         case RECURSIVE_RELABEL_PATH:
         case WRITE_FILE:
+        case COPY_FILES:
                 break;
 
         case REMOVE_PATH:
@@ -942,7 +978,8 @@ static bool item_equal(Item *a, Item *b) {
         if ((a->type == CREATE_FILE ||
              a->type == TRUNCATE_FILE ||
              a->type == WRITE_FILE ||
-             a->type == CREATE_SYMLINK) &&
+             a->type == CREATE_SYMLINK ||
+             a->type == COPY_FILES) &&
             !streq_ptr(a->argument, b->argument))
                 return false;
 
@@ -1030,6 +1067,20 @@ static int parse_line(const char *fname, unsigned line, const char *buffer) {
                         r = -EBADMSG;
                         goto finish;
                 }
+                break;
+
+        case COPY_FILES:
+                if (!i->argument) {
+                        log_error("[%s:%u] Copy files requires argument.", fname, line);
+                        return -EBADMSG;
+                }
+
+                if (!path_is_absolute(i->argument)) {
+                        log_error("[%s:%u] Source path is not absolute.", fname, line);
+                        return -EBADMSG;
+                }
+
+                path_kill_slashes(i->argument);
                 break;
 
         case CREATE_CHAR_DEVICE:
