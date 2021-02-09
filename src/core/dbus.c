@@ -50,7 +50,7 @@
 #define CONNECTIONS_MAX 52
 
 /* Well-known address (http://dbus.freedesktop.org/doc/dbus-specification.html#message-bus-types) */
-#define DBUS_SYSTEM_BUS_DEFAULT_ADDRESS "unix:path=/var/run/dbus/system_bus_socket"
+#define DBUS_SYSTEM_BUS_DEFAULT_ADDRESS "unix:path=/run/dbus/system_bus_socket"
 /* Only used as a fallback */
 #define DBUS_SESSION_BUS_DEFAULT_ADDRESS "autolaunch:"
 
